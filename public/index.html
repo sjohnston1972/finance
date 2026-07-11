@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="UK pension and salary planner — project your pot, take-home pay and retirement income under 2026-27 tax rules.">
+  <title>Pension &amp; Salary Planner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    // Apply the stored theme before first paint to avoid a flash.
+    // A ?theme=light|dark query param wins (handy for sharing/printing).
+    (function () {
+      var t = new URLSearchParams(location.search).get('theme') || localStorage.getItem('theme');
+      if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+    })();
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="page">
+
+    <header class="masthead">
+      <div class="masthead-title">
+        <h1>Pension &amp; Salary Planner</h1>
+        <p class="masthead-sub">Retirement statement · tax year <span id="taxYear"></span></p>
+      </div>
+      <div class="masthead-controls">
+        <div class="segmented" role="radiogroup" aria-label="Tax region" id="regionControl">
+          <button type="button" role="radio" aria-checked="true" data-region="scotland">Scotland</button>
+          <button type="button" role="radio" aria-checked="false" data-region="ruk">England, Wales &amp; NI</button>
+        </div>
+        <button type="button" id="themeToggle" class="icon-btn" aria-label="Switch colour theme" title="Switch colour theme">◐</button>
+      </div>
+    </header>
+
+    <!-- Statement strip: the hero figure -->
+    <section class="statement-strip" aria-live="polite">
+      <div class="strip-figure">
+        <p class="strip-label" id="stripLabel">Projected pot at retirement</p>
+        <p class="strip-value" id="stripValue">—</p>
+        <p class="strip-note" id="stripNote">Enter your details to build your statement.</p>
+      </div>
+      <div class="strip-timeline" id="stripTimeline" hidden>
+        <div class="timeline-track">
+          <span class="timeline-fill" id="timelineFill"></span>
+          <span class="timeline-marker" id="timelineSP"></span>
+        </div>
+        <div class="timeline-labels">
+          <span id="timelineStart">Now</span>
+          <span id="timelineEnd">Retirement</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="layout">
+
+      <!-- Inputs -->
+      <aside class="inputs panel" aria-label="Your details">
+        <section class="form-section">
+          <h2>Personal</h2>
+          <div class="field-row">
+            <label>Current age
+              <input type="number" id="currentAge" min="16" max="100" value="35">
+            </label>
+            <label>Retirement age
+              <input type="number" id="retirementAge" min="40" max="80" value="67">
+            </label>
+          </div>
+        </section>
+
+        <section class="form-section">
+          <h2>Money today</h2>
+          <label>Annual salary (£)
+            <input type="number" id="currentSalary" min="0" step="1000" value="45000">
+          </label>
+          <label>Current pension pot (£)
+            <input type="number" id="currentPension" min="0" step="1000" value="50000">
+          </label>
+          <label>Savings (£)
+            <input type="number" id="currentSavings" min="0" step="1000" value="10000">
+          </label>
+          <label>Outstanding mortgage (£)
+            <input type="number" id="outstandingMortgage" min="0" step="1000" value="0">
+          </label>
+        </section>
+
+        <section class="form-section">
+          <h2>Additional income</h2>
+          <div class="field-row">
+            <label>Amount (£/yr)
+              <input type="number" id="additionalIncome" min="0" step="500" value="0">
+            </label>
+            <label>From age
+              <input type="number" id="additionalIncomeStartAge" min="16" max="100" value="35">
+            </label>
+          </div>
+        </section>
+
+        <section class="form-section">
+          <h2>Pension contributions</h2>
+          <div class="field-row">
+            <label>You (% of salary)
+              <input type="number" id="employeeContribution" min="0" max="100" step="0.5" value="5">
+            </label>
+            <label>Employer (%)
+              <input type="number" id="employerContribution" min="0" max="100" step="0.5" value="3">
+            </label>
+          </div>
+          <label>Contribution type
+            <select id="contributionType">
+              <option value="salary_sacrifice">Salary sacrifice</option>
+              <option value="relief_at_source">Relief at source</option>
+              <option value="net_pay">Net pay arrangement</option>
+            </select>
+          </label>
+          <p class="explainer" id="contributionExplainer"></p>
+          <label class="check" id="higherRateReliefField" hidden>
+            <input type="checkbox" id="includeHigherRateRelief">
+            <span>Include higher/additional-rate relief (claimed via tax return)</span>
+          </label>
+        </section>
+
+        <section class="form-section">
+          <h2>State pension</h2>
+          <div class="field-row">
+            <label>Qualifying NI years
+              <input type="number" id="niQualifyingYears" min="0" max="50" value="35">
+            </label>
+            <label>State pension age
+              <input type="number" id="statePensionAge" min="60" max="75" value="67">
+            </label>
+          </div>
+        </section>
+
+        <section class="form-section">
+          <h2>Assumptions</h2>
+          <div class="segmented small" role="radiogroup" aria-label="Investment growth rate" id="growthControl">
+            <button type="button" role="radio" aria-checked="false" data-rate="2">Low 2%</button>
+            <button type="button" role="radio" aria-checked="true" data-rate="5">Mid 5%</button>
+            <button type="button" role="radio" aria-checked="false" data-rate="8">High 8%</button>
+          </div>
+          <label>Annual salary growth (%)
+            <input type="number" id="salaryGrowth" min="0" max="20" step="0.5" value="0">
+          </label>
+          <label class="check">
+            <input type="checkbox" id="inflationToggle">
+            <span>Show in today's money (2% inflation)</span>
+          </label>
+        </section>
+
+        <section class="form-section actions">
+          <button type="button" class="btn primary" id="analyseBtn">Analyse with Claude</button>
+          <button type="button" class="btn" id="optimiseBtn">Tax optimisation</button>
+          <button type="button" class="btn" id="exportBtn">Export / print summary</button>
+        </section>
+
+        <section class="form-section">
+          <h2>Saved scenarios</h2>
+          <div id="scenarioList" class="scenario-list"></div>
+          <div class="field-row">
+            <button type="button" class="btn" id="saveScenarioBtn">Save scenario</button>
+            <button type="button" class="btn" id="compareBtn" hidden>Compare</button>
+          </div>
+        </section>
+      </aside>
+
+      <!-- Results -->
+      <main class="results" aria-label="Results">
+        <div class="notice warning" id="allowanceWarning" hidden></div>
+        <div class="notice" id="validationNotice" hidden></div>
+
+        <div class="stat-row">
+          <button type="button" class="stat" id="takeHomeBeforeCard">
+            <span class="stat-label">Take-home before pension</span>
+            <span class="stat-value" id="takeHomeBefore">—</span>
+            <span class="stat-sub">monthly · tap for breakdown</span>
+          </button>
+          <button type="button" class="stat" id="takeHomeAfterCard">
+            <span class="stat-label">Take-home after pension</span>
+            <span class="stat-value" id="takeHomeAfter">—</span>
+            <span class="stat-sub">monthly · tap for breakdown</span>
+          </button>
+          <div class="stat">
+            <span class="stat-label">Tax &amp; NI saved</span>
+            <span class="stat-value" id="taxSaved">—</span>
+            <span class="stat-sub">per year, from contributions</span>
+          </div>
+          <div class="stat">
+            <span class="stat-label">Retirement income</span>
+            <span class="stat-value" id="retirementIncome">—</span>
+            <span class="stat-sub" id="retirementIncomeSub">monthly · 4% rule + state pension</span>
+          </div>
+        </div>
+
+        <p class="ledger-note" id="statePensionInfo" hidden></p>
+
+        <section class="chart-block">
+          <h2>Pension growth projection</h2>
+          <div class="chart-holder"><canvas id="projectionChart" role="img" aria-label="Line chart of projected pension pot by age"></canvas></div>
+        </section>
+
+        <section class="chart-block">
+          <h2>Contributions and growth each year</h2>
+          <div class="chart-holder"><canvas id="contributionChart" role="img" aria-label="Stacked bar chart of yearly contributions and growth"></canvas></div>
+        </section>
+
+        <section class="chart-block" id="comparisonBlock" hidden>
+          <h2>Scenario comparison</h2>
+          <div class="table-scroll" id="comparisonTable"></div>
+        </section>
+      </main>
+    </div>
+
+    <footer class="footnote">
+      <p>Estimates for illustration only — not financial advice. Tax figures are for the <span class="taxYearText"></span> UK tax year. Savings grow at an assumed 3% a year; the mortgage balance is treated as cleared from savings and pension at retirement.</p>
+    </footer>
+  </div>
+
+  <!-- Breakdown modal -->
+  <div class="modal" id="breakdownModal" role="dialog" aria-modal="true" aria-labelledby="breakdownTitle" hidden>
+    <div class="modal-card">
+      <header><h2 id="breakdownTitle">Tax breakdown</h2><button type="button" class="icon-btn close" data-close aria-label="Close">×</button></header>
+      <div class="modal-body table-scroll" id="breakdownContent"></div>
+    </div>
+  </div>
+
+  <!-- Optimisation modal -->
+  <div class="modal" id="optimiseModal" role="dialog" aria-modal="true" aria-labelledby="optimiseTitle" hidden>
+    <div class="modal-card">
+      <header><h2 id="optimiseTitle">Tax optimisation</h2><button type="button" class="icon-btn close" data-close aria-label="Close">×</button></header>
+      <div class="modal-body" id="optimiseContent"></div>
+    </div>
+  </div>
+
+  <!-- Claude analysis modal -->
+  <div class="modal" id="analysisModal" role="dialog" aria-modal="true" aria-labelledby="analysisTitle" hidden>
+    <div class="modal-card wide">
+      <header><h2 id="analysisTitle">Claude's analysis</h2><button type="button" class="icon-btn close" data-close aria-label="Close">×</button></header>
+      <div class="modal-body chat" id="analysisContent"></div>
+      <form class="chat-input" id="analysisForm">
+        <input type="text" id="analysisQuestion" placeholder="Ask a follow-up question…" autocomplete="off" maxlength="2000">
+        <button type="submit" class="btn primary">Send</button>
+      </form>
+    </div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
